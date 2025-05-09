@@ -1,0 +1,47 @@
+import numpy as np
+import pandas as pd
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from flask import Flask, request, jsonify
+
+# Load and preprocess data
+def load_data(file_path, seq_length):
+    df = pd.read_csv(file_path)
+    data = df['Close'].values
+    data = np.array(data).reshape(-1, 1)
+    
+    X, y = [], []
+    for i in range(len(data) - seq_length):
+        X.append(data[i:i + seq_length])
+        y.append(data[i + seq_length])
+    
+    return np.array(X), np.array(y)
+
+# Build the LSTM model
+def build_model(input_shape):
+    model = Sequential([
+        LSTM(50, return_sequences=True, input_shape=input_shape),
+        LSTM(50),
+        Dense(1)
+    ])
+    model.compile(optimizer='adam', loss='mse')
+    return model
+
+# Flask API setup
+app = Flask(__name__)
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    content = request.json
+    input_data = np.array(content['data']).reshape(1, -1, 1)
+    prediction = model.predict(input_data)
+    return jsonify({'prediction': float(prediction[0][0])})
+
+if __name__ == "__main__":
+    seq_length = 10
+    X, y = load_data("stock_prices.csv", seq_length)
+    model = build_model((seq_length, 1))
+    model.fit(X, y, epochs=10, batch_size=16)
+    app.run(debug=True)
+    
